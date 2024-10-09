@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserResponse } from './responses';
-import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { JwtPayload } from '@auth/types';
+import { CurrentUser } from '@common/decorators';
 
 @Controller('user')
 export class UserController {
