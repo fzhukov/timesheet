@@ -6,11 +6,14 @@ import {
   ParseUUIDPipe,
   UseInterceptors,
   ClassSerializerInterceptor,
+  Body,
+  Put,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserResponse } from './responses';
 import { JwtPayload } from '@auth/types';
 import { CurrentUser } from '@common/decorators';
+import { User } from '@prisma/client';
 
 @Controller('user')
 export class UserController {
@@ -20,8 +23,11 @@ export class UserController {
   @Get(':idOrEmail')
   async findOneUser(@Param('idOrEmail') idOrEmail: string) {
     const user = await this.userService.findOne(idOrEmail);
-
-    return new UserResponse(user!);
+    if (!user) {
+      return null;
+    } else {
+      return new UserResponse(user);
+    }
   }
 
   @Delete(':id')
@@ -30,5 +36,13 @@ export class UserController {
     @CurrentUser('id') user: JwtPayload,
   ) {
     return this.userService.delete(id, user);
+  }
+
+  @UseInterceptors(ClassSerializerInterceptor)
+  @Put()
+  async updateUser(@Body() body: Partial<User>) {
+    const user = await this.userService.save(body);
+
+    return new UserResponse(user);
   }
 }

@@ -1,5 +1,7 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -9,7 +11,7 @@ import { UserService } from '@user/user.service';
 import { Tokens } from './types';
 import { compareSync } from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { Token, User } from '@prisma/client';
+import { Provider, Token, User } from '@prisma/client';
 import { PrismaService } from '@prisma/prisma.service';
 import { v4 } from 'uuid';
 import { add } from 'date-fns';
@@ -45,7 +47,7 @@ export class AuthService {
     if (user) {
       throw new ConflictException('User with this email already exist');
     }
-    return this.userService.create(dto).catch((err) => {
+    return this.userService.save(dto).catch((err) => {
       this.logger.error(err);
       return null;
     });
@@ -103,5 +105,24 @@ export class AuthService {
 
   deleteRefreshToken(token: string) {
     return this.prismaService.token.delete({ where: { token } });
+  }
+
+  async providerAuth(email: string, agent: string, provider: Provider) {
+    const findedUser = await this.userService.findOne(email);
+    if (findedUser) {
+      return this.generateTokens(findedUser, agent);
+    }
+    const newUser = this.userService
+      .save({ email, password: 'qwerty', provider })
+      .catch((err) => {
+        this.logger.error(err);
+        return null;
+      });
+    if (!newUser) {
+      throw new HttpException(
+        `Can't successfully create user with email ${email}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 }

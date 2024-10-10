@@ -1,4 +1,4 @@
-import { Role, User } from '@prisma/client';
+import { Provider, Role, User } from '@prisma/client';
 import { Exclude } from 'class-transformer';
 
 export class UserResponse implements User {
@@ -7,6 +7,9 @@ export class UserResponse implements User {
 
   @Exclude()
   password: string;
+
+  @Exclude()
+  provider: Provider | null;
 
   @Exclude()
   createdAt: Date;

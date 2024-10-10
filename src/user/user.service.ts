@@ -1,58 +1,67 @@
 import { JwtPayload } from '@auth/types';
-import { convertToSecondsUtil } from '@common/decorators/utils';
+import { convertToSecondsUtil } from '@common/utils';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role, User } from '@prisma/client';
 import { PrismaService } from '@prisma/prisma.service';
 import { genSaltSync, hashSync } from 'bcrypt';
-import { CacheManagerStore } from 'cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly prismaService: PrismaService,
-    @Inject(CACHE_MANAGER) private cacheManager: CacheManagerStore,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly configService: ConfigService,
   ) {}
 
-  create(user: Partial<User>) {
+  async save(user: Partial<User>) {
     const hashedPassword = this.hashPassword(user.password!);
 
-    return this.prismaService.user.create({
-      data: {
+    const savedUser = await this.prismaService.user.upsert({
+      where: { email: user.email },
+      update: {
+        password: hashedPassword ?? undefined,
+        provider: user.provider ?? undefined,
+        roles: user.roles ?? undefined,
+        isBlocked: user.isBlocked ?? undefined,
+      },
+      create: {
         email: user.email!,
         password: hashedPassword,
+        provider: user.provider,
         roles: ['USER'],
       },
     });
+
+    await this.cacheManager.set(savedUser.id, savedUser);
+    await this.cacheManager.set(savedUser.email, savedUser);
+
+    return savedUser;
   }
 
-  async findOne(idOrEmail: string, isReset = false) {
+  async findOne(idOrEmail: string, isReset = false): Promise<User | null> {
     if (isReset) {
-      await this.cacheManager.get(idOrEmail);
+      await this.cacheManager.del(idOrEmail);
     }
-
-    const user = await this.cacheManager.get(idOrEmail);
-
+    const user = await this.cacheManager.get<User>(idOrEmail);
     if (!user) {
-      const user = this.prismaService.user.findFirst({
-        where: { OR: [{ id: idOrEmail }, { email: idOrEmail }] },
+      const user = await this.prismaService.user.findFirst({
+        where: {
+          OR: [{ id: idOrEmail }, { email: idOrEmail }],
+        },
       });
-
       if (!user) {
         return null;
       }
-
       await this.cacheManager.set(
         idOrEmail,
         user,
         convertToSecondsUtil(this.configService.get('JWT_EXP')!),
       );
-
       return user;
     }
-
     return user;
   }
 
