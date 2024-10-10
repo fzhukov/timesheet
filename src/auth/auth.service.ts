@@ -52,10 +52,12 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, agent: string): Promise<Tokens> {
-    const user = await this.userService.findOne(dto.email).catch((err) => {
-      this.logger.error(err);
-      return null;
-    });
+    const user = await this.userService
+      .findOne(dto.email, true)
+      .catch((err) => {
+        this.logger.error(err);
+        return null;
+      });
 
     if (!user || !compareSync(dto.password, user.password)) {
       throw new UnauthorizedException('Wrong login or password');
